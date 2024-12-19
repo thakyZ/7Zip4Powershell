@@ -12,13 +12,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="..\Libs\7z.dll" Link="7z.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Libs\7z64.dll" Link="7z64.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="7Zip4Powershell.psd1" CopyToOutputDirectory="Always" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="GitVersion.MsBuild" Version="6.1.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
     <PackageReference Include="JetBrains.Annotations" Version="2024.3.0" />
     <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" />
     <PackageReference Include="SharpSevenZip" Version="2.0.14" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="7Zip4Powershell.psd1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
