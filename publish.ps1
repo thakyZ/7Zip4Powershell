@@ -45,10 +45,10 @@ Begin {
 		# Patch the version in the .PSD1 file
 		[string] $Psd1File = (Join-Path -Path $moduleTargetPath -ChildPath '7Zip4PowerShell.psd1')
 		Write-Host "Patching version in $($Psd1File) file to $($Version)"
-		[string] $Content = (Get-Content -FilePath $Psd1File -Raw -ErrorAction Stop);
+		[string] $Content = (Get-Content -Path $Psd1File -Raw -ErrorAction Stop);
 		$Content = ($Content -replace '\$version\$', $Version)
 		$Content = ($Content -replace '\$prerelease\$', $Prerelease)
-		$Content | Set-Content -FilePath $Psd1File -ErrorAction Stop;
+		$Content | Set-Content -Path $Psd1File -ErrorAction Stop;
 
 		If ($PSCmdlet.ParameterSetName -eq 'Public') {
 			# Finally publish the module to NuGet
