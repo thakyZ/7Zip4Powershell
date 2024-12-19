@@ -14,9 +14,9 @@ param(
 
 	[Parameter(Mandatory = $True,
 	           ParameterSetName = 'Private')]
-	[ValidateNoNullOrEmpty()]
+	[ValidateNotNullOrEmpty()]
 	[string]
-	$Source,
+	$Source
 )
 
 Begin {
@@ -34,7 +34,7 @@ Begin {
 		New-Item $ModuleTargetPath -ItemType Directory | Out-Null;
 
 		# Copy all required files to that folder
-		Copy-Item -Path (Join-Path -Path $PSScriptRoot -ChildPath '7Zip4Powershell' -AdditionalChildPath @('bin', $Configuration, 'net8.0', '*.*') -Exclude @('JetBrains.Annotations.dll') -Destination $ModuleTargetPath;
+		Copy-Item -Path (Join-Path -Path $PSScriptRoot -ChildPath '7Zip4Powershell' -AdditionalChildPath @('bin', $Configuration, 'net8.0', '*.*')) -Exclude @('JetBrains.Annotations.dll') -Destination $ModuleTargetPath;
 
 		# Determine the version
 		& dotnet tool restore;
