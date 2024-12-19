@@ -2,10 +2,14 @@
 
 Powershell module for creating and extracting 7-Zip archives supporting Powershell's `WriteProgress` API.
 
-![Screenshot](https://raw.githubusercontent.com/thoemmi/7Zip4Powershell/master/Assets/compression.gif)
+![ScreenShot](https://raw.githubusercontent.com/thoemmi/7Zip4Powershell/master/Assets/compression.gif)
 
 
-> # Note
+> # This Repository Owner's Note (Neko Boi Nick/thakyZ)
+> I have updates this because I want to use it myself, I don't plan supporting it long term,
+> nor should this fork be looked at for public longterm use.
+
+> # Original Author's Note
 > Please note that this repository is not maintained anymore. I've created it a couple
 > of years ago to fit my own needs (just compressing a single folder). I love that lots
 > of other users find my package helpful.
@@ -60,7 +64,7 @@ Get-7ZipInformation
     [<CommonParameters>]
 ```
 
-It works with both x86 and x64 and uses [SevenZipSharp](https://github.com/squid-box/SevenZipSharp) as a wrapper around 7zip’s API.
+It works with both x86 and x64 and uses [SharpSevenZip](https://github.com/JeremyAnsel/SharpSevenZip) as a wrapper around 7zip’s API.
 
 [Jason Fossen](https://github.com/JasonFossen) wrote the article [PowerShell 7-Zip Module Versus Compress-Archive with Encryption](https://www.sans.org/blog/powershell-7-zip-module-versus-compress-archive-with-encryption/)
 where he describes some usage scenarios with 7Zip4PowerShell.
@@ -75,7 +79,7 @@ where he describes some usage scenarios with 7Zip4PowerShell.
 ## Customization
 
 `Compress-7Zip` accepts a script block for customization. The script block gets passed the current
-`SevenZipCompressor` instance. E.g. you can set the multithread mode this way:
+`SevenZipCompressor` instance. E.g. you can set the multi-thread mode this way:
 
 ```powershell
 $initScript = {
@@ -89,6 +93,11 @@ Compress-7Zip -Path . -ArchiveFileName demo.7z -CustomInitialization $initScript
 A list of all custom parameters can be found [here](https://sevenzip.osdn.jp/chm/cmdline/switches/method.htm).
 
 ## Changelog
+
+### [v2.8]
+
+* Update code to better support null reference exceptions.
+* Added list of files to `Get-7ZipInformation`
 
 ### [v2.7]
 

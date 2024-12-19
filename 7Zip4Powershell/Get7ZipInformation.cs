@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Management.Automation;
@@ -12,33 +13,28 @@ namespace SevenZip4PowerShell {
     [PublicAPI]
     public class Get7ZipInformation : PSCmdlet {
         [Parameter(Position = 0, ValueFromPipeline = true, Mandatory = true, HelpMessage = "The full file name of the archive")]
-        [ValidateNotNullOrEmpty]
-        public string[] ArchiveFileName { get; set; }
+        [ValidateNotNullOrEmpty()]
+        public string[] ArchiveFileName { get; set; } = null!;
 
         [Parameter(ParameterSetName = ParameterSetNames.PlainPassword)]
-        public string Password { get; set; }
+        public string? Password { get; set; } = null;
 
         [Parameter(ParameterSetName = ParameterSetNames.SecurePassword)]
-        public SecureString SecurePassword { get; set; }
+        public SecureString? SecurePassword { get; set; } = null;
 
-        private string _password;
+        private string? _password = null;
 
         protected override void BeginProcessing() {
             SharpSevenZipBase.SetLibraryPath(Utils.SevenZipLibraryPath);
-
-            switch (ParameterSetName) {
-                case ParameterSetNames.NoPassword:
-                    _password = null;
-                    break;
-                case ParameterSetNames.PlainPassword:
-                    _password = Password;
-                    break;
-                case ParameterSetNames.SecurePassword:
-                    _password = Utils.SecureStringToString(SecurePassword);
-                    break;
-                default:
-                    throw new Exception($"Unsupported parameter set {ParameterSetName}");
-            }
+    
+            _password = ParameterSetName switch {
+                ParameterSetNames.NoPassword => null,
+                ParameterSetNames.PlainPassword when Password is not null => Password,
+                ParameterSetNames.PlainPassword when Password is null => throw new Exception($"Parameter SecurePassword is null"),
+                ParameterSetNames.SecurePassword when SecurePassword is not null => Utils.SecureStringToString(SecurePassword),
+                ParameterSetNames.SecurePassword when SecurePassword is null => throw new Exception($"Parameter SecurePassword is null"),
+                _ => throw new Exception($"Unsupported parameter set {ParameterSetName}"),
+            };
         }
 
         protected override void ProcessRecord() {
@@ -60,6 +56,10 @@ namespace SevenZip4PowerShell {
                         PackedSize = extractor.PackedSize,
                         UnpackedSize = extractor.UnpackedSize,
                         FilesCount = extractor.FilesCount,
+                        Files = extractor.ArchiveFileNames,
+                        FileData = extractor.ArchiveFileData,
+                        // TODO: Determine the base directory for any files.
+                        BaseDirectory = string.Empty,
                         Format = extractor.Format,
                         Method = extractor.ArchiveProperties.Where(prop => prop.Name == "Method").Cast<ArchiveProperty?>().FirstOrDefault()?.Value
                     });
@@ -70,12 +70,15 @@ namespace SevenZip4PowerShell {
 
     [PublicAPI]
     public class ArchiveInformation {
-        public string FileName { get; set; }
-        public long PackedSize { get; set; }
-        public long UnpackedSize { get; set; }
-        public uint FilesCount { get; set; }
-        public string FullPath { get; set; }
-        public InArchiveFormat Format { get; set; }
-        public object Method { get; set; }
+        public required string FileName { get; init; }
+        public required long PackedSize { get; init; }
+        public required long UnpackedSize { get; init; }
+        public required uint FilesCount { get; init; }
+        public required ReadOnlyCollection<string> Files { get; init; }
+        public required ReadOnlyCollection<ArchiveFileInfo> FileData { get; init; }
+        public required string BaseDirectory { get; init; }
+        public required string FullPath { get; init; }
+        public required InArchiveFormat Format { get; init; }
+        public required object? Method { get; init; }
     }
 }

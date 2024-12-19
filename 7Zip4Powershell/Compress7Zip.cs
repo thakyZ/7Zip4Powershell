@@ -1,9 +1,13 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Management.Automation;
 using System.Security;
+using System.Threading;
+
 using JetBrains.Annotations;
 using SharpSevenZip;
 
@@ -23,20 +27,20 @@ namespace SevenZip4PowerShell {
     [PublicAPI]
     public class Compress7Zip : ThreadedCmdlet {
         [Parameter(Position = 0, Mandatory = true, HelpMessage = "The full file name of the archive")]
-        [ValidateNotNullOrEmpty]
-        public string ArchiveFileName { get; set; }
+        [ValidateNotNullOrEmpty()]
+        public string ArchiveFileName { get; set; } = null!;
 
         [Parameter(Position = 1, Mandatory = true, HelpMessage = "The source folder or file", ValueFromPipeline = true)]
-        [ValidateNotNullOrEmpty]
-        public string Path { get; set; }
+        [ValidateNotNullOrEmpty()]
+        public string Path { get; set; } = null!;
 
         [Parameter(Position = 2, Mandatory = false, HelpMessage = "The filter to be applied if Path points to a directory")]
-        public string Filter { get; set; }
+        public string? Filter { get; set; }
 
         [Parameter(HelpMessage = "Output path for a compressed archive")]
-        public string OutputPath { get; set; }
+        public string? OutputPath { get; set; } = null;
 
-        private List<string> _directoryOrFilesFromPipeline;
+        private List<string>? _directoryOrFilesFromPipeline;
 
         [Parameter]
         public OutputFormat Format { get; set; } = OutputFormat.Auto;
@@ -48,17 +52,17 @@ namespace SevenZip4PowerShell {
         public CompressionMethod CompressionMethod { get; set; } = CompressionMethod.Default;
 
         [Parameter(ParameterSetName = ParameterSetNames.PlainPassword)]
-        public string Password { get; set; }
+        public string? Password { get; set; }
 
         [Parameter(ParameterSetName = ParameterSetNames.SecurePassword)]
-        public SecureString SecurePassword { get; set; }
+        public SecureString? SecurePassword { get; set; }
 
         [Parameter(HelpMessage = "Allows setting additional parameters on SevenZipCompressor")]
-        public ScriptBlock CustomInitialization { get; set; }
+        public ScriptBlock? CustomInitialization { get; set; }
 
         [Parameter(HelpMessage = "The temporary folder path; if not specified, %TEMP% will be used")]
-        [CanBeNull]
-        public string TempFolder { get; set; }
+        [CanBeNull()]
+        public string? TempFolder { get; set; }
 
         [Parameter(HelpMessage = "Enables encrypting filenames when using the 7z format")]
         public SwitchParameter EncryptFilenames { get; set; }
@@ -85,31 +89,27 @@ namespace SevenZip4PowerShell {
         public SwitchParameter Append { get; set; }
 
         private OutArchiveFormat _inferredOutArchiveFormat;
-        private string _password;
+        private string? _password;
 
         protected override void BeginProcessing() {
             base.BeginProcessing();
 
             _inferredOutArchiveFormat = GetInferredOutArchiveFormat();
 
-            switch (ParameterSetName) {
-                case ParameterSetNames.NoPassword:
-                    _password = null;
-                    break;
-                case ParameterSetNames.PlainPassword:
-                    _password = Password;
-                    break;
-                case ParameterSetNames.SecurePassword:
-                    _password = Utils.SecureStringToString(SecurePassword);
-                    break;
-                default:
-                    throw new Exception($"Unsupported parameter set {ParameterSetName}");
-            }
+            _password = ParameterSetName switch {
+                ParameterSetNames.NoPassword => null,
+                ParameterSetNames.PlainPassword when Password is not null => Password,
+                ParameterSetNames.PlainPassword when Password is null => throw new Exception($"Parameter SecurePassword is null"),
+                ParameterSetNames.SecurePassword when SecurePassword is not null => Utils.SecureStringToString(SecurePassword),
+                ParameterSetNames.SecurePassword when SecurePassword is null => throw new Exception($"Parameter SecurePassword is null"),
+                _ => throw new Exception($"Unsupported parameter set {ParameterSetName}"),
+            };
 
             if (EncryptFilenames.IsPresent) {
                 if (_inferredOutArchiveFormat != OutArchiveFormat.SevenZip) {
                     throw new ArgumentException("Encrypting filenames is supported for 7z format only.");
                 }
+
                 if (string.IsNullOrEmpty(_password)) {
                     throw new ArgumentException("Encrypting filenames is supported only when using a password.");
                 }
@@ -117,49 +117,31 @@ namespace SevenZip4PowerShell {
         }
 
         private OutArchiveFormat GetInferredOutArchiveFormat() {
-            switch (Format) {
-                case OutputFormat.Auto:
-                    switch (System.IO.Path.GetExtension(ArchiveFileName).ToLowerInvariant()) {
-                        case ".zip":
-                            return OutArchiveFormat.Zip;
-                        case ".gz":
-                            return OutArchiveFormat.GZip;
-                        case ".bz2":
-                            return OutArchiveFormat.BZip2;
-                        case ".wim":
-                            return OutArchiveFormat.Wim;
-                        case ".tar":
-                            return OutArchiveFormat.Tar;
-                        case ".xz":
-                            return OutArchiveFormat.XZ;
-                        default:
-                            return OutArchiveFormat.SevenZip;
-                    }
-                case OutputFormat.SevenZip:
-                    return OutArchiveFormat.SevenZip;
-                case OutputFormat.Zip:
-                    return OutArchiveFormat.Zip;
-                case OutputFormat.GZip:
-                    return OutArchiveFormat.GZip;
-                case OutputFormat.BZip2:
-                    return OutArchiveFormat.BZip2;
-                case OutputFormat.Wim:
-                    return OutArchiveFormat.Wim;
-                case OutputFormat.Tar:
-                    return OutArchiveFormat.Tar;
-                case OutputFormat.XZ:
-                    return OutArchiveFormat.XZ;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+            return Format switch {
+              OutputFormat.Auto => System.IO.Path.GetExtension(ArchiveFileName).ToLowerInvariant() switch {
+                 ".zip" => OutArchiveFormat.Zip,
+                 ".gz" => OutArchiveFormat.GZip,
+                 ".bz2" => OutArchiveFormat.BZip2,
+                 ".wim" => OutArchiveFormat.Wim,
+                 ".tar" => OutArchiveFormat.Tar,
+                 ".xz" => OutArchiveFormat.XZ,
+                 _ => OutArchiveFormat.SevenZip,
+              },
+              OutputFormat.SevenZip => OutArchiveFormat.SevenZip,
+              OutputFormat.Zip => OutArchiveFormat.Zip,
+              OutputFormat.GZip => OutArchiveFormat.GZip,
+              OutputFormat.BZip2 => OutArchiveFormat.BZip2,
+              OutputFormat.Wim => OutArchiveFormat.Wim,
+              OutputFormat.Tar => OutArchiveFormat.Tar,
+              OutputFormat.XZ => OutArchiveFormat.XZ,
+              _ => throw new NotSupportedException($"Output format {Format} is not supported."),
+            };
         }
 
         protected override void ProcessRecord() {
             base.ProcessRecord();
 
-            if (_directoryOrFilesFromPipeline == null) {
-                _directoryOrFilesFromPipeline = new List<string>();
-            }
+            _directoryOrFilesFromPipeline ??= [];
 
             _directoryOrFilesFromPipeline.Add(Path);
         }
@@ -168,16 +150,13 @@ namespace SevenZip4PowerShell {
             return new CompressWorker(this);
         }
 
-        private class CompressWorker : CmdletWorker {
-            private readonly Compress7Zip _cmdlet;
+        private class CompressWorker(Compress7Zip cmdlet) : CmdletWorker {
+            private readonly Compress7Zip _cmdlet = cmdlet;
 
-            public CompressWorker(Compress7Zip cmdlet) {
-                _cmdlet = cmdlet;
-            }
+            private bool HasPassword => !string.IsNullOrEmpty(_cmdlet._password);
 
-            private bool HasPassword => !String.IsNullOrEmpty(_cmdlet._password);
-
-            public override void Execute() {
+            public override void Execute(CancellationToken token) {
+                token.ThrowIfCancellationRequested();
                 var compressor = new SharpSevenZipCompressor {
                     ArchiveFormat = _cmdlet._inferredOutArchiveFormat,
                     CompressionLevel = _cmdlet.CompressionLevel,
@@ -197,17 +176,13 @@ namespace SevenZip4PowerShell {
 
                 _cmdlet.CustomInitialization?.Invoke(compressor);
 
-                if (_cmdlet._directoryOrFilesFromPipeline == null) {
-                    _cmdlet._directoryOrFilesFromPipeline = new List<string> {
-                        _cmdlet.Path
-                    };
-                }
+                _cmdlet._directoryOrFilesFromPipeline ??= [ _cmdlet.Path ];
 
-                // true -> parameter assigned
-                // false -> parameter not assigned
-                var outputPathIsNotEmptyOrNull = !string.IsNullOrEmpty(_cmdlet.OutputPath);
                 // Final path for the archive
-                var outputPath = outputPathIsNotEmptyOrNull
+                string outputPath =
+                    // true -> parameter assigned
+                    // false -> parameter not assigned
+                    !string.IsNullOrEmpty(_cmdlet.OutputPath)
                     ? _cmdlet.OutputPath
                     : _cmdlet.SessionState.Path.CurrentFileSystemLocation.Path;
 
@@ -215,12 +190,12 @@ namespace SevenZip4PowerShell {
                 // and there is an absolute or relative directory in the `ArchiveFileName`,
                 // then use it instead
                 var archiveDirectory = System.IO.Path.GetDirectoryName(_cmdlet.ArchiveFileName);
-                if (!string.IsNullOrEmpty(archiveDirectory) && !outputPathIsNotEmptyOrNull)
-                {
-                    if (System.IO.Path.IsPathRooted(archiveDirectory))
+                if (!string.IsNullOrEmpty(archiveDirectory) && string.IsNullOrEmpty(_cmdlet.OutputPath)) {
+                    if (System.IO.Path.IsPathRooted(archiveDirectory)) {
                         outputPath = archiveDirectory;
-                    else // If the path isn't absolute, then combine it with the path from which the script was called
+                    }  else { // If the path isn't absolute, then combine it with the path from which the script was called
                         outputPath = System.IO.Path.Combine(outputPath, archiveDirectory);
+                    }
                 }
 
                 // Check whether the output path is a path to the file
@@ -244,7 +219,7 @@ namespace SevenZip4PowerShell {
 
                 var currentStatus = "Compressing";
 
-                // Reuse ProgressRecord instance insead of creating new one on each progress update
+                // Reuse ProgressRecord instance instead of creating new one on each progress update
                 Progress = new ProgressRecord(Environment.CurrentManagedThreadId, activity, currentStatus) { PercentComplete = 0 };
 
                 compressor.FilesFound += (sender, args) =>
@@ -261,11 +236,11 @@ namespace SevenZip4PowerShell {
 
                 if (directoryOrFiles.Any(path => new FileInfo(path).Exists)) {
                     var notFoundFiles = directoryOrFiles.Where(path => !new FileInfo(path).Exists).ToArray();
-                    if (notFoundFiles.Any()) {
+                    if (notFoundFiles.Length != 0) {
                         throw new FileNotFoundException("File(s) not found: " + string.Join(", ", notFoundFiles));
                     }
                     if (HasPassword) {
-                        compressor.CompressFilesEncrypted(archiveFileName, _cmdlet._password, directoryOrFiles);
+                        compressor.CompressFilesEncrypted(archiveFileName, _cmdlet._password ?? string.Empty, directoryOrFiles);
                     } else {
                         compressor.CompressFiles(archiveFileName, directoryOrFiles);
                     }
@@ -276,9 +251,9 @@ namespace SevenZip4PowerShell {
                     var recursion = !_cmdlet.DisableRecursion.IsPresent;
                     var filter = string.IsNullOrWhiteSpace(_cmdlet.Filter) ? "*" : _cmdlet.Filter;
                     if (HasPassword) {
-                        compressor.CompressDirectory(directoryOrFiles[0], archiveFileName, _cmdlet._password, filter, recursion);
+                        compressor.CompressDirectory(directoryOrFiles[0], archiveFileName, _cmdlet._password ?? string.Empty, filter, recursion);
                     } else {
-                        compressor.CompressDirectory(directoryOrFiles[0], archiveFileName, null, filter, recursion);
+                        compressor.CompressDirectory(directoryOrFiles[0], archiveFileName, string.Empty, filter, recursion);
                     }
                 }
 

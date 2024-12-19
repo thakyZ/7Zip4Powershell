@@ -1,4 +1,6 @@
-﻿using System;
+﻿// Ignore Spelling: Cmdlet
+
+using System;
 using System.Collections.Concurrent;
 using System.Management.Automation;
 using System.Threading;
@@ -7,27 +9,23 @@ using SharpSevenZip;
 namespace SevenZip4PowerShell {
     public abstract class ThreadedCmdlet : PSCmdlet {
         protected abstract CmdletWorker CreateWorker();
-        private Thread _thread;
+        private Thread? _thread;
+        private readonly CancellationTokenSource tokenSource = new();
 
         protected override void EndProcessing() {
             SharpSevenZipBase.SetLibraryPath(Utils.SevenZipLibraryPath);
 
-            var queue = new BlockingCollection<object>();
             var worker = CreateWorker();
-            worker.Queue = queue;
 
-            _thread = StartBackgroundThread(worker);
+            _thread ??= StartBackgroundThread(worker, tokenSource.Token);
 
-            foreach (var o in queue.GetConsumingEnumerable()) {
-                var record = o as ProgressRecord;
-                var errorRecord = o as ErrorRecord;
-
-                if (record != null) {
+            foreach (var o in worker.Queue.GetConsumingEnumerable()) {
+                if (o is ProgressRecord record) {
                     WriteProgress(record);
-                } else if (errorRecord != null) {
+                } else if (o is ErrorRecord errorRecord) {
                     WriteError(errorRecord);
-                } else if (o is string s) {
-                    WriteVerbose(s);
+                } else if (o is string @string) {
+                    WriteVerbose(@string);
                 } else {
                     WriteObject(o);
                 }
@@ -45,10 +43,10 @@ namespace SevenZip4PowerShell {
             }
         }
 
-        private static Thread StartBackgroundThread(CmdletWorker worker) {
+        private static Thread StartBackgroundThread(CmdletWorker worker, CancellationToken token) {
             var thread = new Thread(() => {
                 try {
-                    worker.Execute();
+                    worker.Execute(token);
                 } catch (Exception ex) {
                     worker.Queue.Add(new ErrorRecord(ex, "7Zip4PowerShellException", ErrorCategory.NotSpecified, worker));
                 }
@@ -61,14 +59,24 @@ namespace SevenZip4PowerShell {
         }
 
         protected override void StopProcessing() {
-            _thread?.Abort();
+            if (tokenSource.Token.CanBeCanceled && !tokenSource.IsCancellationRequested) {
+                tokenSource.Cancel();
+            }
         }
     }
 
     public abstract class CmdletWorker {
-        public BlockingCollection<object> Queue { get; set; }
+        public BlockingCollection<object> Queue { get; } = [];
 
         public ProgressRecord Progress { get; set; }
+
+        public CmdletWorker() {
+            // NOTE: In the method of ThreadedCmdlet.EndProcessing() of this type, there is a note for a possible bug in PowerShell 7.4.0
+            //       leading to a null reference exception. This is because the CmdletWorker.Progress property has not been assigned and
+            //       is attempted to be called anyway, which is why that exception has been thrown. To alleviate this issue, add a
+            //       temporary default progress record for startup of the worker.
+            Progress = new ProgressRecord(Environment.CurrentManagedThreadId, "Starting Thread", "Starting") { PercentComplete = 0 };
+        }
 
         protected void Write(string text) {
             Queue.Add(text);
@@ -78,6 +86,6 @@ namespace SevenZip4PowerShell {
             Queue.Add(progressRecord);
         }
 
-        public abstract void Execute();
+        public abstract void Execute(CancellationToken token);
     }
 }
