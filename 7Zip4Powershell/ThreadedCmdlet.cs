@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using System.Management.Automation;
 using System.Threading;
-using SevenZip;
+using SharpSevenZip;
 
 namespace SevenZip4PowerShell {
     public abstract class ThreadedCmdlet : PSCmdlet {
@@ -10,7 +10,7 @@ namespace SevenZip4PowerShell {
         private Thread _thread;
 
         protected override void EndProcessing() {
-            SevenZipBase.SetLibraryPath(Utils.SevenZipLibraryPath);
+            SharpSevenZipBase.SetLibraryPath(Utils.SevenZipLibraryPath);
 
             var queue = new BlockingCollection<object>();
             var worker = CreateWorker();

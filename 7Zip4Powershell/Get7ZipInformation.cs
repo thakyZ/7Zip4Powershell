@@ -4,7 +4,7 @@ using System.Linq;
 using System.Management.Automation;
 using System.Security;
 using JetBrains.Annotations;
-using SevenZip;
+using SharpSevenZip;
 
 namespace SevenZip4PowerShell {
     [Cmdlet(VerbsCommon.Get, "7ZipInformation", DefaultParameterSetName = ParameterSetNames.NoPassword)]
@@ -24,7 +24,7 @@ namespace SevenZip4PowerShell {
         private string _password;
 
         protected override void BeginProcessing() {
-            SevenZipBase.SetLibraryPath(Utils.SevenZipLibraryPath);
+            SharpSevenZipBase.SetLibraryPath(Utils.SevenZipLibraryPath);
 
             switch (ParameterSetName) {
                 case ParameterSetNames.NoPassword:
@@ -45,11 +45,11 @@ namespace SevenZip4PowerShell {
             foreach (var archiveFileName in ArchiveFileName.Select(_ => Path.Combine(SessionState.Path.CurrentFileSystemLocation.Path, _))) {
                 WriteVerbose($"Getting archive data {archiveFileName}");
 
-                SevenZipExtractor extractor;
+                SharpSevenZipExtractor extractor;
                 if (!string.IsNullOrEmpty(_password)) {
-                    extractor = new SevenZipExtractor(archiveFileName, _password);
+                    extractor = new SharpSevenZipExtractor(archiveFileName, _password);
                 } else {
-                    extractor = new SevenZipExtractor(archiveFileName);
+                    extractor = new SharpSevenZipExtractor(archiveFileName);
                 }
 
                 using (extractor) {

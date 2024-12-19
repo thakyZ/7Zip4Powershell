@@ -3,7 +3,7 @@ using System.IO;
 using System.Management.Automation;
 using System.Security;
 using JetBrains.Annotations;
-using SevenZip;
+using SharpSevenZip;
 
 namespace SevenZip4PowerShell {
     [Cmdlet(VerbsData.Expand, "7Zip", DefaultParameterSetName = ParameterSetNames.NoPassword)]
@@ -86,11 +86,11 @@ namespace SevenZip4PowerShell {
                 Write("Extraction finished");
             }
 
-            private SevenZipExtractor CreateExtractor(string archiveFileName) {
+            private SharpSevenZipExtractor CreateExtractor(string archiveFileName) {
                 if (!string.IsNullOrEmpty(_cmdlet._password)) {
-                    return new SevenZipExtractor(archiveFileName, _cmdlet._password);
+                    return new SharpSevenZipExtractor(archiveFileName, _cmdlet._password);
                 } else {
-                    return new SevenZipExtractor(archiveFileName);
+                    return new SharpSevenZipExtractor(archiveFileName);
                 }
             }
         }

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Management.Automation;
 using System.Security;
 using JetBrains.Annotations;
-using SevenZip;
+using SharpSevenZip;
 
 namespace SevenZip4PowerShell {
     public enum OutputFormat {
@@ -178,7 +178,7 @@ namespace SevenZip4PowerShell {
             private bool HasPassword => !String.IsNullOrEmpty(_cmdlet._password);
 
             public override void Execute() {
-                var compressor = new SevenZipCompressor {
+                var compressor = new SharpSevenZipCompressor {
                     ArchiveFormat = _cmdlet._inferredOutArchiveFormat,
                     CompressionLevel = _cmdlet.CompressionLevel,
                     CompressionMethod = _cmdlet.CompressionMethod,
